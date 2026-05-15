@@ -1,0 +1,52 @@
+name: Auto-Monitor Ongoing
+
+on:
+  schedule:
+    # Check every 6 hours for new episodes
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      anime_name:
+        description: 'Specific anime to check (leave empty for all monitored)'
+        required: false
+        type: string
+
+env:
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || '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' }}
+  GEMINI_API_KEY: ${{ secrets.ai }}
+  STREAMP2P_API_KEY: ${{ secrets.STREAMP2P_API_KEY || '46d3af3546d3931092a5b078' }}
+  STREAMP2P_API_BASE: 'https://streamp2p.com/api/v1'
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  check-and-download:
+    name: Check Ongoing Anime
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Auto-monitor check
+        run: |
+          echo "::group::Checking ongoing anime"
+          python auto_schedule.py --check
+          echo "::endgroup::"
+        env:
+          SPECIFIC_ANIME: ${{ inputs.anime_name || '' }}
+
+      - name: Commit state changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add monitored_anime.json monitor_state.json anime_db.json website_data.json 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "auto-monitor: update state [skip ci]"
+          git push
